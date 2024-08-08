@@ -54,6 +54,8 @@
 #include <winsock2.h>
 #include <shellapi.h>
 #pragma comment(lib, "Shell32.lib")
+#elif __APPLE__
+#include <crt_externs.h>
 #else
 #include <fstream>
 #include <unistd.h>
@@ -99,17 +101,17 @@ namespace getopt_utils
 
     // token split
 
-    inline size_t split( std::vector<std::string> &tokens, const std::string &self, const std::string &delimiters ) {
-        std::string str;
-        tokens.clear();
-        for( auto &ch : self ) {
-            if( delimiters.find_first_of( ch ) != std::string::npos ) {
-                if( str.size() ) tokens.push_back( str ), str = "";
-                tokens.push_back( std::string() + ch );
-            } else str += ch;
-        }
-        return str.empty() ? tokens.size() : ( tokens.push_back( str ), tokens.size() );
-    };
+    // inline size_t split( std::vector<std::string> &tokens, const std::string &self, const std::string &delimiters ) {
+    //     std::string str;
+    //     tokens.clear();
+    //     for( auto &ch : self ) {
+    //         if( delimiters.find_first_of( ch ) != std::string::npos ) {
+    //             if( str.size() ) tokens.push_back( str ), str = "";
+    //             tokens.push_back( std::string() + ch );
+    //         } else str += ch;
+    //     }
+    //     return str.empty() ? tokens.size() : ( tokens.push_back( str ), tokens.size() );
+    // };
 
     // portable cmdline 
 
@@ -125,6 +127,11 @@ namespace getopt_utils
                     args.push_back( std::string( ws.begin(), ws.end() ) );
                 }
                 LocalFree(list);
+            }
+    #       elif __APPLE__
+            for (int i = 0; i < *_NSGetArgc(); ++i)
+            {
+                args.push_back((*_NSGetArgv())[i]);
             }
     #       else
             pid_t pid = getpid();
@@ -161,17 +168,11 @@ struct getopt : public std::map< std::string, std::string >
         }
         // create key=value and key= args as well
         for( auto &it : args ) {
-            std::vector<std::string> tokens;
-            auto size = getopt_utils::split( tokens, it, "=" );
-
-            if( size == 3 && tokens[1] == "=" )
-                (*this)[ tokens[0] ] = tokens[2];
+            auto iter = it.find_first_of("=");
+            if (iter == std::string::npos || iter == (it.size() - 1))
+                (*this)[it.substr(0, iter)] = "true";
             else
-            if( size == 2 && tokens[1] == "=" )
-                (*this)[ tokens[0] ] = true;
-            else
-            if( size == 1 && tokens[0] != argv[0] )
-                (*this)[ tokens[0] ] = true;
+                (*this)[it.substr(0, iter)] = it.substr(iter + 1);
         }
         // recreate args
         while( argc-- ) {
